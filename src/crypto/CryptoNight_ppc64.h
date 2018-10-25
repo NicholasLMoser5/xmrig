@@ -477,6 +477,25 @@ static inline __m128i aes_round_tweak_div(const __m128i &in, const __m128i &key)
     return _mm_load_si128((__m128i*)k);
 }
 
+static inline void int_divide_v2_dual(uint64_t cx_10, uint32_t d0, uint64_t cx_11, uint32_t d1, uint64_t* division_result0, uint64_t* division_result1)
+{
+	uint32_t div_result0;
+	uint32_t mod_result0;
+	uint32_t div_result1;
+	uint32_t mod_result1;
+
+	// Barriers force optimal division dispatch across superslice
+	__asm__ __volatile__ ("");	/* Compiler reordering barrier */
+	div_result0 = cx_10 / d0;
+	div_result1 = cx_11 / d1;
+	__asm__ __volatile__ ("");	/* Compiler reordering barrier */
+
+	mod_result0 =  cx_10 - (div_result0 * d0);
+	*division_result0 = static_cast<uint32_t>(div_result0) | (((uint64_t)mod_result0) << 32);
+	mod_result1 =  cx_11 - (div_result1 * d1);
+	*division_result1 = static_cast<uint32_t>(div_result1) | (((uint64_t)mod_result1) << 32);
+}
+
 static inline __m128i int_sqrt_v2(const uint64_t n0)
 {
 	return _mm_cvtsi64_si128(SqrtV2::get(n0));
@@ -694,6 +713,14 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
             cx1 = _mm_aesenc_si128(cx1, ax1);
         }
 
+	uint64_t idx0_next = _mm_cvtsi128_si64(cx0);
+	uint64_t idx1_next = _mm_cvtsi128_si64(cx1);
+	uint64_t* const idx0_masked_ptr = (uint64_t*) &l0[idx0_next & MASK];
+	uint64_t* const idx1_masked_ptr = (uint64_t*) &l1[idx1_next & MASK];
+
+	// Force data into cache
+	asm volatile ("" : : "r" ((idx0_masked_ptr)[0]));
+
         if (IS_V1 || (VARIANT == xmrig::VARIANT_2)) {
             cryptonight_monero_tweak<VARIANT>((uint64_t*)&l0[idx0 & MASK], l0, idx0 & MASK, ax0, bx00, bx01, cx0);
             cryptonight_monero_tweak<VARIANT>((uint64_t*)&l1[idx1 & MASK], l1, idx1 & MASK, ax1, bx10, bx11, cx1);
@@ -702,21 +729,28 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
             _mm_store_si128((__m128i *) &l1[idx1 & MASK], _mm_xor_si128(bx10, cx1));
         }
 
-        idx0 = _mm_cvtsi128_si64(cx0);
-        idx1 = _mm_cvtsi128_si64(cx1);
+	// Force data into cache
+	asm volatile ("" : : "r" ((idx1_masked_ptr)[0]));
+
+        idx0 = idx0_next;
+        idx1 = idx1_next;
 
         uint64_t hi0, lo0, hi1, lo1, cl0, ch0, cl1, ch1;
-        cl0 = ((uint64_t*) &l0[idx0 & MASK])[0];
-        ch0 = ((uint64_t*) &l0[idx0 & MASK])[1];
-        cl1 = ((uint64_t*) &l1[idx1 & MASK])[0];
-        ch1 = ((uint64_t*) &l1[idx1 & MASK])[1];
+        cl0 = (idx0_masked_ptr)[0];
+        ch0 = (idx0_masked_ptr)[1];
+        cl1 = (idx1_masked_ptr)[0];
+        ch1 = (idx1_masked_ptr)[1];
 
         if (VARIANT == xmrig::VARIANT_2) {
             VARIANT2_INTEGER_MATH_DUAL(0, cl0, cx0, 1, cl1, cx1);
             lo0 = __umul128(idx0, cl0, &hi0);
             lo1 = __umul128(idx1, cl1, &hi1);
-            VARIANT2_SHUFFLE2(l0, idx0 & MASK, ax0, bx00, bx01, hi0, lo0);
-            VARIANT2_SHUFFLE2(l1, idx1 & MASK, ax1, bx10, bx11, hi1, lo1);
+            __m128i chunk10, chunk20, chunk30;
+            __m128i chunk11, chunk21, chunk31;
+            VARIANT2_SHUFFLE2_CHUNK1(l0, idx0 & MASK, ax0, bx00, bx01, hi0, lo0, chunk10, chunk20, chunk30);
+            VARIANT2_SHUFFLE2_CHUNK2(l0, idx0 & MASK, ax0, bx00, bx01, hi0, lo0, chunk10, chunk20, chunk30);
+            VARIANT2_SHUFFLE2_CHUNK1(l1, idx1 & MASK, ax1, bx10, bx11, hi1, lo1, chunk11, chunk21, chunk31);
+            VARIANT2_SHUFFLE2_CHUNK2(l1, idx1 & MASK, ax1, bx10, bx11, hi1, lo1, chunk11, chunk21, chunk31);
         } else {
             lo0 = __umul128(idx0, cl0, &hi0);
             lo1 = __umul128(idx1, cl1, &hi1);
@@ -728,11 +762,11 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
         ((uint64_t*)&l0[idx0 & MASK])[0] = al0;
 
         if (IS_V1 && (VARIANT == xmrig::VARIANT_TUBE || VARIANT == xmrig::VARIANT_RTO)) {
-            ((uint64_t*) &l0[idx0 & MASK])[1] = ah0 ^ tweak1_2_0 ^ al0;
+            (idx0_masked_ptr)[1] = ah0 ^ tweak1_2_0 ^ al0;
         } else if (IS_V1) {
-            ((uint64_t*) &l0[idx0 & MASK])[1] = ah0 ^ tweak1_2_0;
+            (idx0_masked_ptr)[1] = ah0 ^ tweak1_2_0;
         } else {
-            ((uint64_t*) &l0[idx0 & MASK])[1] = ah0;
+            (idx0_masked_ptr)[1] = ah0;
         }
 
         al0 ^= cl0;
@@ -752,6 +786,9 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
 
             idx0 = d ^ q;
         }
+
+	// Force data into cache
+	asm volatile ("" : : "r" (((uint64_t*) &l0[idx0 & MASK])[0]));
 
         al1 += hi1;
         ah1 += lo1;
@@ -783,6 +820,9 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
 
             idx1 = d ^ q;
         }
+
+	// Force data into cache
+	asm volatile ("" : : "r" (((uint64_t*) &l1[idx1 & MASK])[0]));
 
         if (VARIANT == xmrig::VARIANT_2) {
             bx01 = bx00;

@@ -133,12 +133,13 @@ Please note performance is highly dependent on system load. The numbers above ar
 
 ### POWER performance comparison, CNv7 to CNv8:
 * 4 and 8 core POWER9 CPUs will see performance at only ~62% of CNv7.  This is because the 4 and 8 core CPUs were essentially being used as an AES round and cache memory ASIC, and CNv8 "wants" to see proof of existence of other parts of a general purpose CPU.  The limiting factor is now the internal cache bus, which was never designed for the kind of bandwidth needed to have all 4 SMT threads operating at full capacity on many different execution units.
-* Higher core count POWER9 CPUs will see performance at around 70% of CNv7.  CNv8 integrated two uncommonly used instructions (integer square root, integer divide) that leverage unique hardware in specific x86 CPUs.
+* Higher core count POWER9 CPUs will see performance at around 85% of CNv7.  CNv8 integrated two uncommonly used instructions (integer square root, integer divide) that leverage unique hardware in specific x86 CPUs.
 
 ### POWER performance discussion
 POWER deemphasised the two rarely used integer square root / integer divide instructions that are key for CNv8 performance, focusing more on improving performance for other areas of the core design.  Unfortunately a more balanced CNv8 algorithm, testing other parts of the CPU in addition to these two instructions, would have been a better choice.  As it stands Monero requires a specific type of ASIC (Core i / Xeon / Zen CPU) for maximum performance by design.  These CPUs are owner-hostile and present serious risks in the form of the ME and PSP vendor DRM systems.
 
-The current bottleneck in exploiting POWER9's SMT4 support to work around the slow div() instruction, which uses a separate execution unit that is shared between SMT2 slices, is actually the TLB.  When more than two threads are running on the same core, first a slowdown affecting all loads (including load hints such as dcbt) is observed.  If the number of threads is increased further, a large spike in dTLB misses is observed.  The net effect of this is that increasing the number of threads on a chiplet, even though it would better feed the division unit, actually maintains around the same hashrate as before, if not lower.  Work continues to remove the dTLB bottleneck on these systems.
+#### 18 core and higher parts only
+If it is desired to increase hashrate back to CNv7 levels at the expense of increased electrical power (same as GPU mining), this can be accomplished by editing the WoF tables to maintain boost even at the higher logic utilization CNv8 produces.  Note that this is technically a form of overclocking, and as such thermals need to be monitored for CPU, mainboard, and VRMs in addition to watching for system instability.
 
 ### Maximum performance for POWER9 4 and 8 core CPUs
 4 threads per core, power save == 1

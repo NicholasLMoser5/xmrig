@@ -90,14 +90,15 @@
         cl0 ^= static_cast<uint64_t>(_mm_cvtsi128_si64(division_result_xmm_##part0)) ^ (sqrt_result0 << 32); \
         const uint32_t d0 = static_cast<uint32_t>(cx0_0 + (sqrt_result0 << 1)) | 0x80000001UL; \
         const uint64_t cx0_1 = _mm_cvtsi128_si64(_mm_srli_si128(cx0, 8)); \
-        const uint64_t division_result0 = static_cast<uint32_t>(cx0_1 / d0) + ((cx0_1 % d0) << 32); \
-        division_result_xmm_##part0 = _mm_cvtsi64_si128(static_cast<int64_t>(division_result0)); \
         const uint64_t sqrt_result1 = static_cast<uint64_t>(_mm_cvtsi128_si64(sqrt_result_xmm_##part1)); \
         const uint64_t cx1_0 = _mm_cvtsi128_si64(cx1); \
         cl1 ^= static_cast<uint64_t>(_mm_cvtsi128_si64(division_result_xmm_##part1)) ^ (sqrt_result1 << 32); \
         const uint32_t d1 = static_cast<uint32_t>(cx1_0 + (sqrt_result1 << 1)) | 0x80000001UL; \
         const uint64_t cx1_1 = _mm_cvtsi128_si64(_mm_srli_si128(cx1, 8)); \
-        const uint64_t division_result1 = static_cast<uint32_t>(cx1_1 / d1) + ((cx1_1 % d1) << 32); \
+        uint64_t division_result0; \
+        uint64_t division_result1; \
+        int_divide_v2_dual(cx0_1, d0, cx1_1, d1, &division_result0, &division_result1); \
+        division_result_xmm_##part0 = _mm_cvtsi64_si128(static_cast<int64_t>(division_result0)); \
         division_result_xmm_##part1 = _mm_cvtsi64_si128(static_cast<int64_t>(division_result1)); \
         int_sqrt_v2_dual(cx0_0 + division_result0, &sqrt_result_xmm_##part0, cx1_0 + division_result1, &sqrt_result_xmm_##part1); \
     } while (0)
@@ -119,6 +120,22 @@
         hi ^= ((uint64_t*)((base_ptr) + ((offset) ^ 0x20)))[0]; \
         lo ^= ((uint64_t*)((base_ptr) + ((offset) ^ 0x20)))[1]; \
         const __m128i chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30))); \
+        _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10)), _mm_add_epi64(chunk3, _b1)); \
+        _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20)), _mm_add_epi64(chunk1, _b)); \
+        _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30)), _mm_add_epi64(chunk2, _a)); \
+    } while (0)
+
+#   define VARIANT2_SHUFFLE2_CHUNK1(base_ptr, offset, _a, _b, _b1, hi, lo, chunk1, chunk2, chunk3) \
+    do { \
+        chunk1 = _mm_xor_si128(_mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10))), _mm_set_epi64x(lo, hi)); \
+        chunk2 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20))); \
+        hi ^= ((uint64_t*)((base_ptr) + ((offset) ^ 0x20)))[0]; \
+        lo ^= ((uint64_t*)((base_ptr) + ((offset) ^ 0x20)))[1]; \
+        chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30))); \
+    } while (0)
+
+#   define VARIANT2_SHUFFLE2_CHUNK2(base_ptr, offset, _a, _b, _b1, hi, lo, chunk1, chunk2, chunk3) \
+    do { \
         _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10)), _mm_add_epi64(chunk3, _b1)); \
         _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20)), _mm_add_epi64(chunk1, _b)); \
         _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30)), _mm_add_epi64(chunk2, _a)); \
