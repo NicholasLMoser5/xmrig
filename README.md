@@ -132,20 +132,21 @@ Also you can use configuration via config file, default name **config.json**. So
 Please note performance is highly dependent on system load. The numbers above are obtained on an idle system. Tasks heavily using a processor cache, such as video playback, can greatly degrade hashrate. Optimal number of threads depends on the size of the L3 cache of a processor, 1 thread requires 2 MB of cache.
 
 ### POWER performance comparison, CNv7 to CNv8:
-* 4 and 8 core POWER9 CPUs will see performance at only ~62% of CNv7.  This is because the 4 and 8 core CPUs were essentially being used as an AES round and cache memory ASIC, and CNv8 "wants" to see proof of existence of other parts of a general purpose CPU.  The limiting factor is now the internal cache bus, which was never designed for the kind of bandwidth needed to have all 4 SMT threads operating at full capacity on many different execution units.
-* Higher core count POWER9 CPUs will see performance at around 85% of CNv7.  CNv8 integrated two uncommonly used instructions (integer square root, integer divide) that leverage unique hardware in specific x86 CPUs.
+* 4 and 8 core POWER9 CPUs will see performance at only ~64% of CNv7.  This is because the 4 and 8 core CPUs were essentially being used as an AES round and cache memory ASIC, and CNv8 "wants" to see proof of existence of other parts of a general purpose CPU.  The limiting factor is now the internal cache bus, which was never designed for the kind of bandwidth needed to have all 4 SMT threads operating at full capacity on many different execution units.
+* Higher core count POWER9 CPUs will see performance at around 85% of CNv7.
 
 ### POWER performance discussion
-POWER deemphasised the two rarely used integer square root / integer divide instructions that are key for CNv8 performance, focusing more on improving performance for other areas of the core design.  Unfortunately a more balanced CNv8 algorithm, testing other parts of the CPU in addition to these two instructions, would have been a better choice.  As it stands Monero requires a specific type of ASIC (Core i / Xeon / Zen CPU) for maximum performance by design.  These CPUs are owner-hostile and present serious risks in the form of the ME and PSP vendor DRM systems.
+CNv8 integrated two uncommonly used instructions (64 bit integer square root, 64 bit integer divide) that leverage unique hardware in specific x86 CPUs.  POWER deemphasised those two rarely used integer square root / integer divide instructions that are key for CNv8 performance, focusing more on improving performance for other areas of the core design.  Unfortunately a more balanced CNv8 algorithm, testing other parts of the CPU in addition to these two instructions, would have been a better choice.  As it stands Monero requires a specific type of ASIC (Core i / Xeon / Zen CPU) for maximum performance by design.  These CPUs are owner-hostile and present serious risks in the form of the ME and PSP vendor DRM systems.
 
 #### 18 core and higher parts only
 If it is desired to increase hashrate back to CNv7 levels at the expense of increased electrical power (same as GPU mining), this can be accomplished by editing the WoF tables to maintain boost even at the higher logic utilization CNv8 produces.  Note that this is technically a form of overclocking, and as such thermals need to be monitored for CPU, mainboard, and VRMs in addition to watching for system instability.
 
 ### Maximum performance for POWER9 4 and 8 core CPUs
-4 threads per core, power save == 1
+SMT4, 2 threads per core, power save == 2
+(4 threads per chiplet)
 
 ### Maximum performance for POWER9 CPUs greater than 8 cores
-1 thread per core, power save == 2
+SMT4, 1 thread per core, power save == 2
 (2 threads per chiplet)
 
 ### Maximum performance checklist
